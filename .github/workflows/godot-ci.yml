@@ -1,25 +1,26 @@
-name: "Export and Deploy to GitHub Pages" # 工作流名称，可自定义
+name: "Export and Deploy to Pages"
 
 on:
   push:
     tags:
-      - "v*"  # 👈 只有推送 v1.0.0, v2.3.1 这类标签时才运行
+      - "v*"  # 推送标签时触发
 
 env:
-  GODOT_VERSION: 4.7.1  # 👈 替换为你的 Godot 版本，例如 4.2.2 或 3.5.3
-  EXPORT_NAME: ShapeSpeed # 👈 替换为你的游戏项目名称，将用作导出文件名
+  GODOT_VERSION: 4.7.1
+  EXPORT_NAME: ShapeSpeed
 
 jobs:
+  # 1. 构建 Job：只负责导出 Web 文件，并上传为 artifacts
   export-web:
     name: Export for Web
     runs-on: ubuntu-22.04
     container:
-      image: barichello/godot-ci:4.7.1 # 👈 确保此镜像标签与 GODOT_VERSION 一致
+      image: barichello/godot-ci:4.7.1
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          lfs: true # 如果你的项目使用 Git LFS，需要启用此选项
+          lfs: true
 
       - name: Setup Godot export templates
         run: |
@@ -31,8 +32,46 @@ jobs:
           mkdir -v -p ./build/web
           godot --headless --export-release "Web" ./build/web/index.html
 
+      # 关键步骤：将构建产物上传，供后续 Job 使用
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-build
+          path: ./build/web
+
+  # 2. 部署到 GitHub Pages
+  deploy-gh-pages:
+    name: Deploy to GitHub Pages
+    needs: export-web  # 等待构建完成
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: web-build
+          path: ./build/web
+
       - name: Deploy to GitHub Pages
         uses: JamesIves/github-pages-deploy-action@v4
         with:
-          folder: ./build/web # 要部署的文件夹
-          branch: gh-pages    # 部署到的目标分支
+          folder: ./build/web
+          branch: gh-pages
+
+  # 3. 部署到 Cloudflare Pages
+  deploy-cloudflare:
+    name: Deploy to Cloudflare Pages
+    needs: export-web  # 等待构建完成
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: web-build
+          path: ./build/web
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          accountId: ${{ secrets.CF_ACCOUNT_ID }}
+          command: pages deploy ./build/web --project-name=ShapeSpeed
