@@ -7,6 +7,7 @@ const AREA_PADDING := 20.0         # 两个区域之间的间距
 const BG_TARGET := Color(0.15, 0.15, 0.18, 1.0)   # 原图区背景
 const BG_COPY   := Color(0.15, 0.15, 0.18, 1.0)   # 临摹区背景（和原图区一致）
 const BORDER_COLOR := Color(0.35, 0.35, 0.40, 1.0)
+const AREA_LABEL_FONT := preload("res://assets/fonts/SmileySans-Oblique.otf")
 
 
 # ── 内部状态 ──
@@ -86,7 +87,7 @@ func _draw_area_bg(rect: Rect2, bg_color: Color, label: String) -> void:
 	draw_rect(rect, bg_color, true)
 	draw_rect(rect, BORDER_COLOR, false, 1.0)
 	# 区域标签
-	var font := ThemeDB.fallback_font
+	var font := AREA_LABEL_FONT
 	var font_size := 14
 	draw_string(
 		font,
@@ -240,7 +241,7 @@ func _on_state_changed(_state: GameManager.State) -> void:
 ## 将练习返回的 Rating 枚举映射为展示文字
 func _rating_display_text(rating: BaseExercise.Rating) -> String:
 	match rating:
-		BaseExercise.Rating.FLAWLESS: return "〇 无暇"
-		BaseExercise.Rating.PERFECT:  return "★ 完美"
-		BaseExercise.Rating.PASS:     return "✓ 过关"
+		BaseExercise.Rating.FLAWLESS: return "无暇"
+		BaseExercise.Rating.PERFECT:  return "完美"
+		BaseExercise.Rating.PASS:     return "过关"
 		_:                            return "继续练习"
