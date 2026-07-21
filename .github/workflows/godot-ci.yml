@@ -1,0 +1,37 @@
+name: "Export and Deploy to GitHub Pages" # 工作流名称，可自定义
+
+on:
+  push:
+    branches: [ "main" ]  # 当推送到 main 分支时触发，可替换为你的主分支名
+
+env:
+  GODOT_VERSION: 4.7.1  # 👈 替换为你的 Godot 版本，例如 4.2.2 或 3.5.3
+  EXPORT_NAME: ShapeSpeed # 👈 替换为你的游戏项目名称，将用作导出文件名
+
+jobs:
+  export-web:
+    name: Export for Web
+    runs-on: ubuntu-22.04
+    container:
+      image: barichello/godot-ci:4.7.1 # 👈 确保此镜像标签与 GODOT_VERSION 一致
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true # 如果你的项目使用 Git LFS，需要启用此选项
+
+      - name: Setup Godot export templates
+        run: |
+          mkdir -v -p ~/.local/share/godot/export_templates/
+          mv /root/.local/share/godot/export_templates/${GODOT_VERSION}.stable ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
+
+      - name: Export for Web
+        run: |
+          mkdir -v -p ./build/web
+          godot --headless --export-release "Web" ./build/web/index.html
+
+      - name: Deploy to GitHub Pages
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          folder: ./build/web # 要部署的文件夹
+          branch: gh-pages    # 部署到的目标分支
