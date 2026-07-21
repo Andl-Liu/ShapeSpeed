@@ -48,6 +48,9 @@ jobs:
     needs: export-web  # 等待构建完成
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Download build artifact
         uses: actions/download-artifact@v4
         with:
@@ -64,7 +67,7 @@ jobs:
   deploy-cloudflare:
     name: Deploy to Cloudflare Pages
     needs: export-web  # 等待构建完成
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - name: Download build artifact
         uses: actions/download-artifact@v4
