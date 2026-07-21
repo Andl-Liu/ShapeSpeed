@@ -2,7 +2,8 @@ name: "Export and Deploy to GitHub Pages" # 工作流名称，可自定义
 
 on:
   push:
-    branches: [ "main" ]  # 当推送到 main 分支时触发，可替换为你的主分支名
+    tags:
+      - "v*"  # 👈 只有推送 v1.0.0, v2.3.1 这类标签时才运行
 
 env:
   GODOT_VERSION: 4.7.1  # 👈 替换为你的 Godot 版本，例如 4.2.2 或 3.5.3
