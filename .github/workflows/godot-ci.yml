@@ -9,6 +9,9 @@ env:
   GODOT_VERSION: 4.7.1
   EXPORT_NAME: ShapeSpeed
 
+permissions:
+    contents: write
+
 jobs:
   # 1. 构建 Job：只负责导出 Web 文件，并上传为 artifacts
   export-web:
@@ -74,4 +77,4 @@ jobs:
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           accountId: ${{ secrets.CF_ACCOUNT_ID }}
-          command: pages deploy ./build/web --project-name=ShapeSpeed
+          command: pages deploy ./build/web --project-name=shape-speed
