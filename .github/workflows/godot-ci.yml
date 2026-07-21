@@ -35,6 +35,27 @@ jobs:
           mkdir -v -p ./build/web
           godot --headless --export-release "Web" ./build/web/index.html
 
+      - name: Install wasm-opt (binaryen)
+        run: |
+          apt-get update && apt-get install -y binaryen
+
+      - name: Optimize wasm for size
+        run: |
+          echo "Before optimization:"
+          ls -lh ./build/web/index.wasm
+          wasm-opt -Oz --enable-bulk-memory ./build/web/index.wasm -o ./build/web/index.wasm
+          echo "After optimization:"
+          ls -lh ./build/web/index.wasm
+
+      - name: Check wasm size limit
+        run: |
+          FILE_SIZE=$(stat -c%s ./build/web/index.wasm)
+          MAX_SIZE=26214400  # 25 MiB in bytes
+          echo "index.wasm size: $FILE_SIZE bytes (limit: $MAX_SIZE bytes)"
+          if [ "$FILE_SIZE" -gt "$MAX_SIZE" ]; then
+            echo "::warning::index.wasm still exceeds 25 MiB limit! Consider reducing Godot export features or using R2."
+          fi
+
       # 关键步骤：将构建产物上传，供后续 Job 使用
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
