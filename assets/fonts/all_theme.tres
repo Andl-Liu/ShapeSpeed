@@ -1,0 +1,7 @@
+[gd_resource type="Theme" format=3 uid="uid://bf0qospwuhw6a"]
+
+[ext_resource type="FontFile" uid="uid://chgslpe8l6wml" path="res://assets/fonts/SmileySans-Oblique.otf" id="1_gqecg"]
+
+[resource]
+default_font = ExtResource("1_gqecg")
+default_font_size = 24

@@ -101,7 +101,7 @@ func _draw_area_bg(rect: Rect2, bg_color: Color, label: String) -> void:
 func _draw_geometry(draw_data: Array, area_rect: Rect2, alpha: float = 1.0) -> void:
 	# 将练习逻辑坐标（以 area_center 为原点）映射到屏幕区域
 	var logical_size: Vector2 = Settings.CANVAS.default_size
-	var scale: float = area_rect.size.x / logical_size.x
+	var scale_current: float = area_rect.size.x / logical_size.x
 	var area_center := area_rect.position + area_rect.size / 2.0
 	var logical_center: Vector2 = Settings.CANVAS.default_center
 
@@ -113,29 +113,29 @@ func _draw_geometry(draw_data: Array, area_rect: Rect2, alpha: float = 1.0) -> v
 
 		match item_type:
 			"line":
-				var from_local: Vector2 = _logical_to_screen(item["from"], area_center, logical_center, scale)
-				var to_local: Vector2 = _logical_to_screen(item["to"], area_center, logical_center, scale)
-				draw_line(from_local, to_local, color, item.get("width", 2.0), true)
+				var from_local: Vector2 = _logical_to_screen(item["from"], area_center, logical_center, scale_current)
+				var to_local_current: Vector2 = _logical_to_screen(item["to"], area_center, logical_center, scale_current)
+				draw_line(from_local, to_local_current, color, item.get("width", 2.0), true)
 
 			"circle":
-				var c: Vector2 = _logical_to_screen(item["center"], area_center, logical_center, scale)
-				var r: float = item["radius"] * scale
+				var c: Vector2 = _logical_to_screen(item["center"], area_center, logical_center, scale_current)
+				var r: float = item["radius"] * scale_current
 				draw_circle(c, r, color)
 
 			"angle_arc":
 				# 角度弧线（固定角度模式可用）
-				var c: Vector2 = _logical_to_screen(item["center"], area_center, logical_center, scale)
-				var r: float = item["radius"] * scale
+				var c: Vector2 = _logical_to_screen(item["center"], area_center, logical_center, scale_current)
+				var r: float = item["radius"] * scale_current
 				var from_rad: float = deg_to_rad(-item["from_angle_deg"])
 				var to_rad: float = deg_to_rad(-item["to_angle_deg"])
 				draw_arc(c, r, from_rad, to_rad, 32, color, 1.5, true)
 
 
-func _logical_to_screen(logical_pos: Vector2, area_center: Vector2, logical_center: Vector2, scale: float) -> Vector2:
+func _logical_to_screen(logical_pos: Vector2, area_center: Vector2, logical_center: Vector2, scale_current: float) -> Vector2:
 	# 1. 计算相对于逻辑中心的偏移
 	var offset: Vector2 = logical_pos - logical_center
 	# 2. 缩放到屏幕像素
-	var scaled: Vector2 = offset * scale
+	var scaled: Vector2 = offset * scale_current
 	# 3. 平移到屏幕区域中心
 	return area_center + scaled
 
@@ -230,7 +230,7 @@ func _on_result_ready(result: Dictionary) -> void:
 
 func _on_back_pressed() -> void:
 	GameManager.reset_session()
-	get_tree().change_scene_to_file("res://menu.tscn")
+	get_tree().change_scene_to_file("res://src/scenes/menu.tscn")
 
 
 func _on_state_changed(_state: GameManager.State) -> void:
@@ -240,7 +240,7 @@ func _on_state_changed(_state: GameManager.State) -> void:
 ## 将练习返回的 Rating 枚举映射为展示文字
 func _rating_display_text(rating: BaseExercise.Rating) -> String:
 	match rating:
-		BaseExercise.Rating.FLAWLESS: return "★ 无暇"
+		BaseExercise.Rating.FLAWLESS: return "〇 无暇"
 		BaseExercise.Rating.PERFECT:  return "★ 完美"
 		BaseExercise.Rating.PASS:     return "✓ 过关"
 		_:                            return "继续练习"
