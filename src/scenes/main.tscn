@@ -33,8 +33,9 @@ offset_bottom = 36.0
 theme_override_font_sizes/font_size = 24
 text = "总分: 0"
 
-[node name="FixedValueCheckBox" type="CheckBox" parent="UI" unique_id=2938475610]
+[node name="FixedValueCheckBox" type="CheckBox" parent="UI" unique_id=-1356491686]
 visible = false
+anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
 offset_left = -280.0
@@ -44,8 +45,9 @@ offset_bottom = 48.0
 grow_horizontal = 0
 text = "固定数值模式"
 
-[node name="FixedValueDropdown" type="OptionButton" parent="UI" unique_id=3847561092]
+[node name="FixedValueDropdown" type="OptionButton" parent="UI" unique_id=-447406204]
 visible = false
+anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
 offset_left = -280.0
@@ -54,8 +56,9 @@ offset_right = -76.0
 offset_bottom = 80.0
 grow_horizontal = 0
 
-[node name="FixedValueCustomInput" type="LineEdit" parent="UI" unique_id=4756109283]
+[node name="FixedValueCustomInput" type="LineEdit" parent="UI" unique_id=461141987]
 visible = false
+anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
 offset_left = -280.0

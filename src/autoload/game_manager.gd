@@ -58,6 +58,21 @@ func start_new_exercise() -> void:
 	exercise_started.emit(_current_exercise)
 
 
+## 不增加回合数地重新生成当前练习（用于切换固定数值模式等配置变更）
+func regenerate_exercise() -> void:
+	if _current_exercise:
+		_current_exercise.cleanup()
+		_current_exercise.queue_free()
+		_current_exercise = null
+
+	_current_exercise = ExerciseFactory.create_exercise(session_type, session_difficulty, session_options)
+	_current_exercise.exercise_completed.connect(_on_exercise_completed)
+
+	# 注意：不增加 _round
+	_set_state(State.PLAYING)
+	exercise_started.emit(_current_exercise)
+
+
 ## 用户点击「提交」
 func submit_current_exercise() -> void:
 	if _state != State.PLAYING or not _current_exercise:
@@ -100,6 +115,7 @@ func reset_session() -> void:
 	_round = 0
 	_correct_count = 0
 	_streak = 0
+	session_options = {}
 	_set_state(State.IDLE)
 
 

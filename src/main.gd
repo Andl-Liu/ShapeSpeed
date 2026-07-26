@@ -361,18 +361,18 @@ func _on_fixed_value_custom_submitted(text: String) -> void:
 		_regenerate_with_fixed_value()
 
 
-## 以当前选中的固定数值重新生成练习
+## 以当前选中的固定数值重新生成练习（不增加回合数）
 func _regenerate_with_fixed_value() -> void:
 	GameManager.session_options = {
 		"is_fixed_angle_mode": true,
 		"fixed_angle_value_deg": _selected_fixed_value,
 	}
-	GameManager.start_new_exercise()
+	GameManager.regenerate_exercise()
 
 
-## 关闭固定数值模式，重新生成普通练习
+## 关闭固定数值模式，重新生成普通练习（不增加回合数）
 func _regenerate_without_fixed_value() -> void:
 	GameManager.session_options = {
 		"is_fixed_angle_mode": false,
 	}
-	GameManager.start_new_exercise()
+	GameManager.regenerate_exercise()
