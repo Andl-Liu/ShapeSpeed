@@ -124,7 +124,7 @@ func get_target_draw_date() -> Array:
 		"color": color_target,
 	})
 
-	# 固定角度模式：辅助线 + 角度弧线
+	# 固定角度模式：辅助线
 	if is_fixed_angle_mode:
 		var aux_ep := _angle_to_endpoints(_aux_line_angle_deg, line_length)
 		data.append({
@@ -134,14 +134,6 @@ func get_target_draw_date() -> Array:
 			"color": color_auxiliary,
 			"width": line_width_aux,
 			"dashed": true,
-		})
-		data.append({
-			"type": "angle_arc",
-			"center": center,
-			"radius": Settings.CANVAS.angle_arc_radius,
-			"from_angle_deg": _target_angle_deg,
-			"to_angle_deg": _aux_line_angle_deg,
-			"color": color_auxiliary,
 		})
 
 	return data
@@ -199,3 +191,13 @@ func on_rotation_input(delta_angle_deg: float) -> void:
 	_user_angle_deg += delta_angle_deg
 	_user_angle_deg = MathUtils.normalize_angle_deg(_user_angle_deg)
 	geometry_changed.emit()
+
+
+# ── 固定数值模式 ──
+
+func has_fixed_value_mode() -> bool:
+	return true
+
+## 返回固定角度模式下的预设角度选项（度）
+func get_fixed_value_options() -> Array:
+	return [30.0, 45.0, 60.0, 90.0]

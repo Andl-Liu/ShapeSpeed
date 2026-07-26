@@ -37,8 +37,16 @@ func get_copy_draw_date() -> Array:
 func get_hint_text() -> String:
 	assert(false, "This abstract method must be overridden in a subclass!")
 	return "" # 返回提示文本,如几等分点、几倍的线
-	
+
 # 子类可选覆盖的方法
+
+## 是否有固定数值模式（如固定角度、固定长度等）
+func has_fixed_value_mode() -> bool:
+	return false
+
+## 返回固定数值模式下的预设选项列表
+func get_fixed_value_options() -> Array:
+	return []
 
 func get_interaction_mode() -> InteractionMode:
 	return InteractionMode.ROTATION

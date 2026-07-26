@@ -20,6 +20,12 @@ var _prev_mouse_angle_deg: float = 0.0
 var _original_rect := Rect2()
 var _copy_rect := Rect2()
 
+## 固定数值模式 UI 状态
+var _fixed_value_mode_enabled: bool = false
+var _selected_fixed_value: float = 0.0
+var _is_custom_value: bool = false
+var _custom_value_text: String = ""
+
 
 # ── 子节点引用 ──
 
@@ -27,6 +33,10 @@ var _copy_rect := Rect2()
 @onready var _hint_label: Label = $UI/HintLabel
 @onready var _score_label: Label = $UI/ScoreLabel
 @onready var _back_btn: Button = $UI/BackBtn
+
+@onready var _fixed_checkbox: CheckBox = $UI/FixedValueCheckBox
+@onready var _fixed_dropdown: OptionButton = $UI/FixedValueDropdown
+@onready var _fixed_custom_input: LineEdit = $UI/FixedValueCustomInput
 
 
 # ── 生命周期 ──
@@ -39,6 +49,11 @@ func _ready() -> void:
 
 	_submit_btn.pressed.connect(_on_submit_pressed)
 	_back_btn.pressed.connect(_on_back_pressed)
+
+	# 固定数值模式 UI 连接
+	_fixed_checkbox.toggled.connect(_on_fixed_value_checkbox_toggled)
+	_fixed_dropdown.item_selected.connect(_on_fixed_value_dropdown_selected)
+	_fixed_custom_input.text_submitted.connect(_on_fixed_value_custom_submitted)
 
 	# 启动第一题
 	GameManager.start_new_exercise()
@@ -123,14 +138,6 @@ func _draw_geometry(draw_data: Array, area_rect: Rect2, alpha: float = 1.0) -> v
 				var r: float = item["radius"] * scale_current
 				draw_circle(c, r, color)
 
-			"angle_arc":
-				# 角度弧线（固定角度模式可用）
-				var c: Vector2 = _logical_to_screen(item["center"], area_center, logical_center, scale_current)
-				var r: float = item["radius"] * scale_current
-				var from_rad: float = deg_to_rad(-item["from_angle_deg"])
-				var to_rad: float = deg_to_rad(-item["to_angle_deg"])
-				draw_arc(c, r, from_rad, to_rad, 32, color, 1.5, true)
-
 
 func _logical_to_screen(logical_pos: Vector2, area_center: Vector2, logical_center: Vector2, scale_current: float) -> Vector2:
 	# 1. 计算相对于逻辑中心的偏移
@@ -198,6 +205,9 @@ func _on_exercise_started(exercise: BaseExercise) -> void:
 		GameManager.get_streak(),
 	]
 
+	# 固定数值模式 UI 更新
+	_update_fixed_value_ui()
+
 	queue_redraw()
 
 
@@ -245,3 +255,124 @@ func _rating_display_text(rating: BaseExercise.Rating) -> String:
 		BaseExercise.Rating.PERFECT:  return "完美"
 		BaseExercise.Rating.PASS:     return "过关"
 		_:                            return "继续练习"
+
+
+# ── 固定数值模式 UI 逻辑 ──
+
+## 根据当前练习更新固定数值模式相关的 UI 可见性和状态
+func _update_fixed_value_ui() -> void:
+	if not _exercise:
+		return
+
+	if _exercise.has_fixed_value_mode():
+		_fixed_checkbox.visible = true
+		_fixed_checkbox.button_pressed = _fixed_value_mode_enabled
+
+		if _fixed_value_mode_enabled:
+			_populate_fixed_value_dropdown()
+			_fixed_dropdown.visible = true
+			_restore_dropdown_selection()
+		else:
+			_fixed_dropdown.visible = false
+			_fixed_custom_input.visible = false
+	else:
+		_fixed_checkbox.visible = false
+		_fixed_dropdown.visible = false
+		_fixed_custom_input.visible = false
+
+
+## 用练习返回的预设选项填充下拉菜单（末尾追加"自定义..."）
+func _populate_fixed_value_dropdown() -> void:
+	_fixed_dropdown.clear()
+	var options: Array = _exercise.get_fixed_value_options()
+	for value in options:
+		_fixed_dropdown.add_item("%d°" % int(value))
+	_fixed_dropdown.add_item("自定义...")
+
+
+## 根据当前选中的值恢复下拉菜单的选中项
+func _restore_dropdown_selection() -> void:
+	if _is_custom_value:
+		_fixed_dropdown.select(_fixed_dropdown.item_count - 1)  # 最后一项 = "自定义..."
+		_fixed_custom_input.visible = true
+		_fixed_custom_input.text = _custom_value_text
+		return
+
+	var options: Array = _exercise.get_fixed_value_options()
+	for i in range(options.size()):
+		if abs(options[i] - _selected_fixed_value) < 0.01:
+			_fixed_dropdown.select(i)
+			_fixed_custom_input.visible = false
+			return
+
+	# 未匹配到预设值，默认选第一个
+	if options.size() > 0:
+		_selected_fixed_value = options[0]
+		_fixed_dropdown.select(0)
+	_fixed_custom_input.visible = false
+
+
+## 固定数值模式复选框切换
+func _on_fixed_value_checkbox_toggled(checked: bool) -> void:
+	_fixed_value_mode_enabled = checked
+
+	if checked:
+		if _exercise and _exercise.has_fixed_value_mode():
+			_populate_fixed_value_dropdown()
+			_fixed_dropdown.visible = true
+
+			# 首次打开时默认选中第一个预设值
+			var options: Array = _exercise.get_fixed_value_options()
+			if _selected_fixed_value == 0.0 and options.size() > 0:
+				_selected_fixed_value = options[0]
+			_restore_dropdown_selection()
+
+			_regenerate_with_fixed_value()
+	else:
+		_fixed_dropdown.visible = false
+		_fixed_custom_input.visible = false
+		_is_custom_value = false
+		_regenerate_without_fixed_value()
+
+
+## 固定数值下拉菜单选择变更
+func _on_fixed_value_dropdown_selected(index: int) -> void:
+	var item_text: String = _fixed_dropdown.get_item_text(index)
+
+	if item_text == "自定义...":
+		_is_custom_value = true
+		_fixed_custom_input.visible = true
+		_fixed_custom_input.text = _custom_value_text
+		_fixed_custom_input.grab_focus()
+	else:
+		_is_custom_value = false
+		_fixed_custom_input.visible = false
+		# 从 "30°" 格式中解析数值
+		var value_str: String = item_text.replace("°", "")
+		_selected_fixed_value = float(value_str)
+		_regenerate_with_fixed_value()
+
+
+## 自定义数值输入框回车提交
+func _on_fixed_value_custom_submitted(text: String) -> void:
+	if text.is_valid_float():
+		_selected_fixed_value = text.to_float()
+		_custom_value_text = text
+		_regenerate_with_fixed_value()
+
+
+## 以当前选中的固定数值重新生成练习
+func _regenerate_with_fixed_value() -> void:
+	GameManager.session_options = {
+		"is_fixed_angle_mode": true,
+		"fixed_angle_value_deg": _selected_fixed_value,
+	}
+	GameManager.start_new_exercise()
+
+
+## 关闭固定数值模式，重新生成普通练习
+func _regenerate_without_fixed_value() -> void:
+	GameManager.session_options = {
+		"is_fixed_angle_mode": false,
+	}
+	GameManager.start_new_exercise()
