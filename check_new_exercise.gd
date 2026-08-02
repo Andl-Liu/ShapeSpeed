@@ -147,5 +147,62 @@ func _init() -> void:
 	assert(length_exercise.build_random_session_options() == {"is_fixed_length_mode": false},
 		"random session options mismatch")
 
+	# ══ 自由线段练习 ══
+	const FreeSegmentScript := preload("res://src/exercises/free_segment_exercise.gd")
+	var free_exercise = FreeSegmentScript.new()
+	assert(free_exercise != null, "free segment new() returned null")
+	assert(not free_exercise.has_fixed_value_mode(), "free segment should have no fixed value mode")
+
+	# 生成 200 次：目标/初始线段均满足边界与长度约束
+	for i in range(200):
+		free_exercise.generate(0)
+		var target_len: float = free_exercise._target_a.distance_to(free_exercise._target_b)
+		assert(target_len >= 50.0 and target_len <= 300.0,
+			"free target length out of range: %s" % target_len)
+		_assert_points_in_bounds(_collect_points(free_exercise.get_target_draw_date()), "free target")
+		_assert_points_in_bounds(_collect_points(free_exercise.get_copy_draw_date()), "free copy")
+		_assert_points_in_bounds(_collect_points(free_exercise.get_answer_draw_date()), "free answer")
+
+	# 精确复刻 → 无暇、满分
+	free_exercise._target_a = Vector2(100, 100)
+	free_exercise._target_b = Vector2(300, 100)
+	free_exercise._user_a = Vector2(100, 200)
+	free_exercise._user_b = Vector2(300, 200)
+	free_exercise.is_generated = true
+
+	var dragged_a: Vector2 = free_exercise.on_point_dragged(0, Vector2(100, 100))
+	assert(dragged_a == Vector2(100, 100), "drag point 0 failed: %s" % dragged_a)
+	free_exercise.on_point_dragged(1, Vector2(300, 100))
+
+	var r_exact: Dictionary = free_exercise.validate()
+	assert(r_exact["rating"] == BaseExercise.Rating.FLAWLESS, "exact copy should be flawless")
+	assert(absf(r_exact["score"] - 100.0) < 0.001, "exact copy should score 100")
+	assert(r_exact["average_error_px"] == 0.0, "exact copy error should be 0")
+
+	# 交换两个端点顺序也应无暇（最小匹配）
+	free_exercise._user_a = Vector2(300, 100)
+	free_exercise._user_b = Vector2(100, 100)
+	var r_swap: Dictionary = free_exercise.validate()
+	assert(r_swap["rating"] == BaseExercise.Rating.FLAWLESS, "swapped copy should be flawless")
+
+	# 单端点偏差 8px → 平均 4px → 完美
+	free_exercise._user_a = Vector2(308, 100)
+	free_exercise._user_b = Vector2(100, 100)
+	var r_perfect: Dictionary = free_exercise.validate()
+	assert(r_perfect["rating"] == BaseExercise.Rating.PERFECT, "8px endpoint offset should be perfect")
+	assert(absf(r_perfect["average_error_px"] - 4.0) < 0.001, "avg error should be 4")
+
+	# 单端点偏差 16px → 平均 8px → 过关
+	free_exercise._user_a = Vector2(316, 100)
+	assert(free_exercise.validate()["rating"] == BaseExercise.Rating.PASS, "16px offset should be pass")
+
+	# 单端点偏差 24px → 平均 12px → 继续练习
+	free_exercise._user_a = Vector2(324, 100)
+	assert(free_exercise.validate()["rating"] == BaseExercise.Rating.PRACTICE, "24px offset should be practice")
+
+	# 越界拖拽被夹取到边界框内
+	var clamped: Vector2 = free_exercise.on_point_dragged(0, Vector2(600, 100))
+	assert(clamped == Vector2(490, 100), "drag should clamp to margin box: %s" % clamped)
+
 	print("CHECK_OK")
 	quit(0)
