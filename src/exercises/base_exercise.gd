@@ -48,6 +48,47 @@ func has_fixed_value_mode() -> bool:
 func get_fixed_value_options() -> Array:
 	return []
 
+## 返回固定数值模式预设选项的显示文本（不含"自定义..."）
+func get_fixed_value_display_options() -> Array:
+	var labels: Array = []
+	for value in get_fixed_value_options():
+		labels.append("%d°" % int(value))
+	return labels
+
+## 将下拉/自定义输入文本解析为数值；无法解析返回 -1.0
+func parse_fixed_value_text(text: String) -> float:
+	var cleaned: String = text.replace("°", "").strip_edges()
+	if cleaned.is_valid_float():
+		return cleaned.to_float()
+	return -1.0
+
+## 校验固定数值是否合法（自定义输入时使用）
+func is_valid_fixed_value(value: float) -> bool:
+	return value > 0.0
+
+## 自定义输入框的占位提示文本
+func get_fixed_value_custom_placeholder() -> String:
+	return "输入自定义数值..."
+
+## 生成固定数值模式下的会话参数（供 GameManager.session_options 注入）
+func build_fixed_value_session_options(fixed_value: float, _display_text: String = "") -> Dictionary:
+	return {
+		"is_fixed_angle_mode": true,
+		"fixed_angle_value_deg": fixed_value,
+	}
+
+## 生成普通（随机）模式下的会话参数
+func build_random_session_options() -> Dictionary:
+	return { "is_fixed_angle_mode": false }
+
+## 提交后叠加显示在临摹区的正确答案数据（默认=原图数据）
+func get_answer_draw_date() -> Array:
+	return get_target_draw_date()
+
+## 提交后展示偏差的提示文字（main 调用）
+func get_error_display_text(result: Dictionary) -> String:
+	return "偏差 %.1f°" % result.get("angle_error", 0.0)
+
 func get_interaction_mode() -> InteractionMode:
 	return InteractionMode.ROTATION
 

@@ -15,6 +15,7 @@ const AREA_LABEL_FONT := preload("res://assets/fonts/SmileySans-Oblique.otf")
 var _exercise: BaseExercise = null
 var _is_rotating: bool = false
 var _prev_mouse_angle_deg: float = 0.0
+var _dragging_point_id: int = -1
 
 ## 两个区域的屏幕坐标矩形（每帧 _draw 前更新）
 var _original_rect := Rect2()
@@ -71,12 +72,12 @@ func _draw() -> void:
 	# 临摹区
 	_draw_area_bg(_copy_rect, BG_COPY, "临摹")
 
-	# 提交后：先画原图参考（半透明，在用户线段下方）
-	if GameManager.get_state() == GameManager.State.SHOWING_RESULT and _exercise:
-		_draw_geometry(_exercise.get_target_draw_date(), _copy_rect, 0.3)
-
-	# 再画用户线段（在上方）
+	# 先画用户线段（在下方）
 	_draw_geometry(_exercise.get_copy_draw_date() if _exercise else [], _copy_rect)
+
+	# 提交后：正确答案半透明叠加在最上方，便于与用户答案对比
+	if GameManager.get_state() == GameManager.State.SHOWING_RESULT and _exercise:
+		_draw_geometry(_exercise.get_answer_draw_date(), _copy_rect, 0.3)
 
 
 func _update_area_rects() -> void:
@@ -138,6 +139,12 @@ func _draw_geometry(draw_data: Array, area_rect: Rect2, alpha: float = 1.0) -> v
 				var r: float = item["radius"] * scale_current
 				draw_circle(c, r, color)
 
+			"control_point":
+				var cp: Vector2 = _logical_to_screen(item["center"], area_center, logical_center, scale_current)
+				var cp_radius: float = item.get("radius", Settings.CANVAS.control_point_radius) * scale_current
+				draw_circle(cp, cp_radius, color)
+				draw_arc(cp, cp_radius, 0.0, TAU, 32, Color(1.0, 1.0, 1.0, 0.9 * alpha), 2.0, true)
+
 
 func _logical_to_screen(logical_pos: Vector2, area_center: Vector2, logical_center: Vector2, scale_current: float) -> Vector2:
 	# 1. 计算相对于逻辑中心的偏移
@@ -148,6 +155,15 @@ func _logical_to_screen(logical_pos: Vector2, area_center: Vector2, logical_cent
 	return area_center + scaled
 
 
+## 屏幕坐标 → 练习逻辑坐标（与 _logical_to_screen 互逆）
+func _screen_to_logical(screen_pos: Vector2, area_rect: Rect2) -> Vector2:
+	var logical_size: Vector2 = Settings.CANVAS.default_size
+	var scale_current: float = area_rect.size.x / logical_size.x
+	var area_center: Vector2 = area_rect.position + area_rect.size / 2.0
+	var logical_center: Vector2 = Settings.CANVAS.default_center
+	return logical_center + (screen_pos - area_center) / scale_current
+
+
 # ── 输入处理 ──
 
 func _input(event: InputEvent) -> void:
@@ -155,9 +171,16 @@ func _input(event: InputEvent) -> void:
 		return
 	if not _exercise:
 		return
-	if _exercise.get_interaction_mode() != BaseExercise.InteractionMode.ROTATION:
-		return
 
+	match _exercise.get_interaction_mode():
+		BaseExercise.InteractionMode.ROTATION:
+			_handle_rotation_input(event)
+		BaseExercise.InteractionMode.LINE_CONSTAINED, BaseExercise.InteractionMode.FREE_MOVE:
+			_handle_point_drag_input(event)
+
+
+## 旋转模式输入：在临摹区按住拖动控制旋转
+func _handle_rotation_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
 		if mb.button_index == MOUSE_BUTTON_LEFT:
@@ -173,6 +196,48 @@ func _input(event: InputEvent) -> void:
 			var delta: float = _shortest_angle_delta(_prev_mouse_angle_deg, current_angle)
 			_exercise.on_rotation_input(delta)
 			_prev_mouse_angle_deg = current_angle
+
+
+## 控制点拖拽模式输入：命中可控点后拖动，位置交由练习约束
+func _handle_point_drag_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton:
+		var mb := event as InputEventMouseButton
+		if mb.button_index == MOUSE_BUTTON_LEFT:
+			if mb.pressed:
+				if _copy_rect.has_point(mb.position):
+					_dragging_point_id = _hit_test_control_point(mb.position)
+				else:
+					_dragging_point_id = -1
+			else:
+				_dragging_point_id = -1
+
+	elif event is InputEventMouseMotion:
+		if _dragging_point_id >= 0:
+			var proposed: Vector2 = _screen_to_logical(event.position, _copy_rect)
+			_exercise.on_point_dragged(_dragging_point_id, proposed)
+			queue_redraw()
+
+
+## 在临摹区命中检测可控点，返回其序号；未命中返回 -1
+func _hit_test_control_point(screen_pos: Vector2) -> int:
+	if not _exercise:
+		return -1
+
+	var logical_size: Vector2 = Settings.CANVAS.default_size
+	var scale_current: float = _copy_rect.size.x / logical_size.x
+	var area_center: Vector2 = _copy_rect.position + _copy_rect.size / 2.0
+	var logical_center: Vector2 = Settings.CANVAS.default_center
+
+	var hit_radius_logical: float = 20.0
+	var point_id: int = 0
+	for item in _exercise.get_copy_draw_date():
+		if item.get("type", "") != "control_point":
+			continue
+		var c: Vector2 = _logical_to_screen(item["center"], area_center, logical_center, scale_current)
+		if c.distance_to(screen_pos) <= hit_radius_logical * scale_current:
+			return point_id
+		point_id += 1
+	return -1
 
 
 ## 计算鼠标位置相对于旋转中心的角度（度，Godot 坐标系：右=0，下=90）
@@ -204,6 +269,7 @@ func _on_exercise_started(exercise: BaseExercise) -> void:
 	_exercise = exercise
 	_exercise.geometry_changed.connect(queue_redraw)
 	_is_rotating = false
+	_dragging_point_id = -1
 
 	_submit_btn.text = "提交"
 	_submit_btn.disabled = false
@@ -233,7 +299,6 @@ func _on_submit_pressed() -> void:
 func _on_result_ready(result: Dictionary) -> void:
 	_submit_btn.text = "下一题"
 
-	var angle_err: float = result.get("angle_error", 0.0)
 	var rating: String = _rating_display_text(result.get("rating", BaseExercise.Rating.PRACTICE))
 
 	_score_label.text = "第 %d 题 | 正确: %d | 连胜: %d | %s" % [
@@ -243,7 +308,7 @@ func _on_result_ready(result: Dictionary) -> void:
 		rating,
 	]
 
-	_hint_label.text = "偏差 %.1f°" % angle_err
+	_hint_label.text = _exercise.get_error_display_text(result) if _exercise else ""
 	_hint_label.visible = true
 
 	queue_redraw()
@@ -294,9 +359,9 @@ func _update_fixed_value_ui() -> void:
 ## 用练习返回的预设选项填充下拉菜单（末尾追加"自定义..."）
 func _populate_fixed_value_dropdown() -> void:
 	_fixed_dropdown.clear()
-	var options: Array = _exercise.get_fixed_value_options()
-	for value in options:
-		_fixed_dropdown.add_item("%d°" % int(value))
+	var labels: Array = _exercise.get_fixed_value_display_options()
+	for label in labels:
+		_fixed_dropdown.add_item(label)
 	_fixed_dropdown.add_item("自定义...")
 
 
@@ -306,18 +371,19 @@ func _restore_dropdown_selection() -> void:
 		_fixed_dropdown.select(_fixed_dropdown.item_count - 1)  # 最后一项 = "自定义..."
 		_fixed_custom_input.visible = true
 		_fixed_custom_input.text = _custom_value_text
+		_fixed_custom_input.placeholder_text = _exercise.get_fixed_value_custom_placeholder()
 		return
 
-	var options: Array = _exercise.get_fixed_value_options()
-	for i in range(options.size()):
-		if abs(options[i] - _selected_fixed_value) < 0.01:
+	var labels: Array = _exercise.get_fixed_value_display_options()
+	for i in range(labels.size()):
+		if absf(_exercise.parse_fixed_value_text(labels[i]) - _selected_fixed_value) < 0.01:
 			_fixed_dropdown.select(i)
 			_fixed_custom_input.visible = false
 			return
 
 	# 未匹配到预设值，默认选第一个
-	if options.size() > 0:
-		_selected_fixed_value = options[0]
+	if labels.size() > 0:
+		_selected_fixed_value = _exercise.parse_fixed_value_text(labels[0])
 		_fixed_dropdown.select(0)
 	_fixed_custom_input.visible = false
 
@@ -332,9 +398,9 @@ func _on_fixed_value_checkbox_toggled(checked: bool) -> void:
 			_fixed_dropdown.visible = true
 
 			# 首次打开时默认选中第一个预设值
-			var options: Array = _exercise.get_fixed_value_options()
-			if _selected_fixed_value == 0.0 and options.size() > 0:
-				_selected_fixed_value = options[0]
+			var labels: Array = _exercise.get_fixed_value_display_options()
+			if _selected_fixed_value == 0.0 and labels.size() > 0:
+				_selected_fixed_value = _exercise.parse_fixed_value_text(labels[0])
 			_restore_dropdown_selection()
 
 			_regenerate_with_fixed_value()
@@ -353,36 +419,39 @@ func _on_fixed_value_dropdown_selected(index: int) -> void:
 		_is_custom_value = true
 		_fixed_custom_input.visible = true
 		_fixed_custom_input.text = _custom_value_text
+		_fixed_custom_input.placeholder_text = _exercise.get_fixed_value_custom_placeholder()
 		_fixed_custom_input.grab_focus()
 	else:
 		_is_custom_value = false
 		_fixed_custom_input.visible = false
-		# 从 "30°" 格式中解析数值
-		var value_str: String = item_text.replace("°", "")
-		_selected_fixed_value = float(value_str)
+		_selected_fixed_value = _exercise.parse_fixed_value_text(item_text)
 		_regenerate_with_fixed_value()
 
 
 ## 自定义数值输入框回车提交
 func _on_fixed_value_custom_submitted(text: String) -> void:
-	if text.is_valid_float():
-		_selected_fixed_value = text.to_float()
-		_custom_value_text = text
-		_regenerate_with_fixed_value()
+	var value: float = _exercise.parse_fixed_value_text(text)
+	if value < 0.0 or not _exercise.is_valid_fixed_value(value):
+		return  # 非法输入：忽略并保留当前练习
+	_selected_fixed_value = value
+	_custom_value_text = text
+	_regenerate_with_fixed_value()
 
 
 ## 以当前选中的固定数值重新生成练习（不增加回合数）
 func _regenerate_with_fixed_value() -> void:
-	GameManager.session_options = {
-		"is_fixed_angle_mode": true,
-		"fixed_angle_value_deg": _selected_fixed_value,
-	}
+	var display_text: String = ""
+	if _is_custom_value:
+		display_text = _custom_value_text
+	else:
+		var idx: int = _fixed_dropdown.selected
+		if idx >= 0:
+			display_text = _fixed_dropdown.get_item_text(idx)
+	GameManager.session_options = _exercise.build_fixed_value_session_options(_selected_fixed_value, display_text)
 	GameManager.regenerate_exercise()
 
 
 ## 关闭固定数值模式，重新生成普通练习（不增加回合数）
 func _regenerate_without_fixed_value() -> void:
-	GameManager.session_options = {
-		"is_fixed_angle_mode": false,
-	}
+	GameManager.session_options = _exercise.build_random_session_options()
 	GameManager.regenerate_exercise()

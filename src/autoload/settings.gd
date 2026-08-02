@@ -34,5 +34,5 @@ const CANVAS := {
 	"default_line_length": 180.0,
 	"center_dot_radius":   4.0,
 	"angle_arc_radius":    30.0,
-	"control_point_radius": 12.0, 
+	"control_point_radius": 6.0,
 }

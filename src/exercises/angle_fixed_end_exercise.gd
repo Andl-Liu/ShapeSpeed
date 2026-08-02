@@ -297,3 +297,7 @@ func has_fixed_value_mode() -> bool:
 ## 返回固定角度模式下的预设角度选项（度）
 func get_fixed_value_options() -> Array:
 	return [30.0, 45.0, 60.0, 90.0]
+
+
+func get_fixed_value_custom_placeholder() -> String:
+	return "输入自定义角度..."
