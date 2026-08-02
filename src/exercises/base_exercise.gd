@@ -51,6 +51,10 @@ func get_fixed_value_options() -> Array:
 func get_interaction_mode() -> InteractionMode:
 	return InteractionMode.ROTATION
 
+## 返回旋转操作的圆心（逻辑坐标，临摹区坐标系）
+func get_rotation_center() -> Vector2:
+	return Settings.CANVAS.default_center
+
 func on_point_dragged(_point_id: int, _proposed_position: Vector2) -> Vector2:
 	return _proposed_position # 默认不约束拖拽点的最终位置
 

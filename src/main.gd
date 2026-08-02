@@ -175,11 +175,21 @@ func _input(event: InputEvent) -> void:
 			_prev_mouse_angle_deg = current_angle
 
 
-## 计算鼠标位置相对于临摹区中心的角度（度，Godot 坐标系：右=0，下=90）
+## 计算鼠标位置相对于旋转中心的角度（度，Godot 坐标系：右=0，下=90）
 func _mouse_to_angle(mouse_pos: Vector2) -> float:
-	var center: Vector2 = _copy_rect.position + _copy_rect.size / 2.0
-	var delta: Vector2 = mouse_pos - center
+	var pivot: Vector2 = _get_rotation_center_screen()
+	var delta: Vector2 = mouse_pos - pivot
 	return rad_to_deg(delta.angle())  # Godot Y-down: angle increases clockwise
+
+
+## 将练习的旋转中心（逻辑坐标）换算为临摹区屏幕坐标
+func _get_rotation_center_screen() -> Vector2:
+	var logical_size: Vector2 = Settings.CANVAS.default_size
+	var scale_current: float = _copy_rect.size.x / logical_size.x
+	var area_center: Vector2 = _copy_rect.position + _copy_rect.size / 2.0
+	var logical_center: Vector2 = Settings.CANVAS.default_center
+	var logical_pivot: Vector2 = _exercise.get_rotation_center() if _exercise else logical_center
+	return _logical_to_screen(logical_pivot, area_center, logical_center, scale_current)
 
 
 ## 两个角度之间的最短带符号差值（度），结果 (-180, 180]
