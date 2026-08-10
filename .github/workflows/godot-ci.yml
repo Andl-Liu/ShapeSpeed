@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - "v*"  # 推送标签时触发
+  workflow_dispatch:  # 允许手动触发
 
 env:
   GODOT_VERSION: 4.7.1
@@ -63,3 +64,30 @@ jobs:
           folder: ./build/web
           branch: gh-pages
 
+  # 3. 部署到阿里云（Docker/nginx 托管）
+  deploy-aliyun:
+    name: Deploy to Aliyun
+    needs: export-web
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download web build
+        uses: actions/download-artifact@v4
+        with:
+          name: web-build
+          path: ./build/web
+
+      - name: Deploy via rsync over SSH
+        env:
+          ALIYUN_HOST: ${{ secrets.ALIYUN_HOST }}
+          ALIYUN_USER: ${{ secrets.ALIYUN_USER }}
+          ALIYUN_SSH_KEY: ${{ secrets.ALIYUN_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$ALIYUN_SSH_KEY" | tr -d '\r' > ~/.ssh/aliyun_key
+          chmod 600 ~/.ssh/aliyun_key
+          rsync -az --delete -e "ssh -i ~/.ssh/aliyun_key -o StrictHostKeyChecking=accept-new" \
+            ./build/web/ \
+            "$ALIYUN_USER@$ALIYUN_HOST:/opt/shapespeed/web/"
+          ssh -i ~/.ssh/aliyun_key -o StrictHostKeyChecking=accept-new \
+            "$ALIYUN_USER@$ALIYUN_HOST" \
+            "cd /opt/shapespeed && docker compose up -d"

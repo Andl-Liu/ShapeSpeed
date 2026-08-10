@@ -1,3 +1,6 @@
 # Godot 4+ specific ignores
 .godot/
 /android/
+
+# 服务器部署相关文件（只在本机/服务器上使用，不进仓库）
+/deploy/
