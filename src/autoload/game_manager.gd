@@ -39,6 +39,10 @@ var session_type: String = "angle_fixed_center"
 var session_difficulty: int = 0
 var session_options: Dictionary = {}
 
+# 计时模式配置（在菜单中修改；跨练习与菜单往返保持，reset_session 不清空）
+var timed_mode_enabled: bool = false
+var timed_mode_seconds: float = 30.0
+
 
 # ── 公开方法 ──
 

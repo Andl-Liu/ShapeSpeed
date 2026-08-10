@@ -16,6 +16,9 @@ var _exercise: BaseExercise = null
 var _is_rotating: bool = false
 var _prev_mouse_angle_deg: float = 0.0
 var _dragging_point_id: int = -1
+var _elapsed_seconds: float = 0.0
+var _displayed_seconds: int = -1
+var _time_up_played: bool = false
 
 ## 两个区域的屏幕坐标矩形（每帧 _draw 前更新）
 var _original_rect := Rect2()
@@ -34,6 +37,7 @@ var _custom_value_text: String = ""
 @onready var _hint_label: Label = $UI/HintLabel
 @onready var _score_label: Label = $UI/ScoreLabel
 @onready var _back_btn: Button = $UI/BackBtn
+@onready var _time_label: Label = $UI/TimeLabel
 
 @onready var _fixed_checkbox: CheckBox = $UI/FixedValueCheckBox
 @onready var _fixed_dropdown: OptionButton = $UI/FixedValueDropdown
@@ -58,6 +62,27 @@ func _ready() -> void:
 
 	# 启动第一题
 	GameManager.start_new_exercise()
+
+
+# ── 时间与计时模式 ──
+
+func _process(delta: float) -> void:
+	if GameManager.get_state() != GameManager.State.PLAYING:
+		return
+
+	_elapsed_seconds += delta
+	var seconds: int = int(_elapsed_seconds)
+	if seconds != _displayed_seconds:
+		_displayed_seconds = seconds
+		_time_label.text = "时间: %ds" % seconds
+
+	# 计时模式：最后两秒播放提示音，达到目标秒数自动提交（提交后状态变化，本函数随即停止）
+	if GameManager.timed_mode_enabled:
+		if not _time_up_played and _elapsed_seconds >= GameManager.timed_mode_seconds - 2.0:
+			_time_up_played = true
+			AudioManager.play_time_up()
+		if _elapsed_seconds >= GameManager.timed_mode_seconds:
+			GameManager.submit_current_exercise()
 
 
 # ── 渲染 ──
@@ -143,7 +168,6 @@ func _draw_geometry(draw_data: Array, area_rect: Rect2, alpha: float = 1.0) -> v
 				var cp: Vector2 = _logical_to_screen(item["center"], area_center, logical_center, scale_current)
 				var cp_radius: float = item.get("radius", Settings.CANVAS.control_point_radius) * scale_current
 				draw_circle(cp, cp_radius, color)
-				draw_arc(cp, cp_radius, 0.0, TAU, 32, Color(1.0, 1.0, 1.0, 0.9 * alpha), 2.0, true)
 
 
 func _logical_to_screen(logical_pos: Vector2, area_center: Vector2, logical_center: Vector2, scale_current: float) -> Vector2:
@@ -270,6 +294,10 @@ func _on_exercise_started(exercise: BaseExercise) -> void:
 	_exercise.geometry_changed.connect(queue_redraw)
 	_is_rotating = false
 	_dragging_point_id = -1
+	_elapsed_seconds = 0.0
+	_displayed_seconds = -1
+	_time_up_played = false
+	_time_label.text = "时间: 0s"
 
 	_submit_btn.text = "提交"
 	_submit_btn.disabled = false
@@ -298,6 +326,12 @@ func _on_submit_pressed() -> void:
 
 func _on_result_ready(result: Dictionary) -> void:
 	_submit_btn.text = "下一题"
+
+	# 结果音效：过关及以上播 correct，继续练习播 fail
+	if result.get("rating", BaseExercise.Rating.PRACTICE) == BaseExercise.Rating.PRACTICE:
+		AudioManager.play_fail()
+	else:
+		AudioManager.play_correct()
 
 	var rating: String = _rating_display_text(result.get("rating", BaseExercise.Rating.PRACTICE))
 

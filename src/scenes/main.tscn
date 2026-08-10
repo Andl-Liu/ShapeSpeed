@@ -33,6 +33,14 @@ offset_bottom = 36.0
 theme_override_font_sizes/font_size = 24
 text = "总分: 0"
 
+[node name="TimeLabel" type="Label" parent="UI"]
+offset_left = 8.0
+offset_top = 40.0
+offset_right = 210.0
+offset_bottom = 64.0
+theme_override_font_sizes/font_size = 16
+text = "时间: 0s"
+
 [node name="FixedValueCheckBox" type="CheckBox" parent="UI" unique_id=-1356491686]
 visible = false
 anchors_preset = 1

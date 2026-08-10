@@ -20,6 +20,7 @@ config/icon="res://icon.svg"
 Settings="*res://src/autoload/settings.gd"
 ExerciseFactory="*res://src/autoload/exercise_factory.gd"
 GameManager="*res://src/autoload/game_manager.gd"
+AudioManager="*res://src/autoload/audio_manager.gd"
 
 [display]
 
