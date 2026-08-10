@@ -14,6 +14,7 @@ const _TYPE_MAP := {
 	"angle_fixed_end": preload("res://src/exercises/angle_fixed_end_exercise.gd"),
 	"length": preload("res://src/exercises/length_exercise.gd"),
 	"free_segment": preload("res://src/exercises/free_segment_exercise.gd"),
+	"geometry": preload("res://src/exercises/geometry_exercise.gd"),
 }
 
 ## 类型 → 显示名称
@@ -22,6 +23,7 @@ const DISPLAY_NAMES := {
 	"angle_fixed_end": "固定一端角度练习",
 	"length": "长度练习",
 	"free_segment": "自由线段练习",
+	"geometry": "几何练习",
 }
 
 

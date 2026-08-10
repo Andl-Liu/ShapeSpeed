@@ -23,6 +23,14 @@ func _assert_points_in_bounds(points: Array, tag: String) -> void:
 		assert(p.y >= 10.0 and p.y <= 490.0, "%s out of bounds y: %s" % [tag, p])
 
 
+## 多边形相邻边（含首尾闭合边）的最短长度
+func _min_edge_length(vertices: Array) -> float:
+	var min_len: float = INF
+	for i in range(vertices.size()):
+		min_len = minf(min_len, vertices[i].distance_to(vertices[(i + 1) % vertices.size()]))
+	return min_len
+
+
 ## 对长度练习指定模式跑 N 次生成，校验边界、长度范围与答案约束
 func _check_length_generation(exercise, ratio: float, ratio_text: String, iterations: int) -> void:
 	exercise.is_fixed_length_mode = true
@@ -203,6 +211,90 @@ func _init() -> void:
 	# 越界拖拽被夹取到边界框内
 	var clamped: Vector2 = free_exercise.on_point_dragged(0, Vector2(600, 100))
 	assert(clamped == Vector2(490, 100), "drag should clamp to margin box: %s" % clamped)
+
+	# ══ 几何练习 ══
+	const GeometryScript := preload("res://src/exercises/geometry_exercise.gd")
+	var geometry_exercise = GeometryScript.new()
+	assert(geometry_exercise != null, "geometry new() returned null")
+	assert(geometry_exercise.has_fixed_value_mode(), "geometry should have fixed value mode")
+	assert(not geometry_exercise.has_custom_fixed_value(), "geometry should have no custom value")
+
+	# 随机模式 200 次：顶点数 3~5、边界、最短边
+	for i in range(200):
+		geometry_exercise.is_fixed_vertex_mode = false
+		geometry_exercise.generate(0)
+		var count: int = geometry_exercise._target_vertices.size()
+		assert(count >= 3 and count <= 5, "vertex count out of range: %s" % count)
+		assert(geometry_exercise._user_vertices.size() == count, "user vertex count mismatch")
+		_assert_points_in_bounds(_collect_points(geometry_exercise.get_target_draw_date()), "geo target")
+		_assert_points_in_bounds(_collect_points(geometry_exercise.get_copy_draw_date()), "geo copy")
+		_assert_points_in_bounds(_collect_points(geometry_exercise.get_answer_draw_date()), "geo answer")
+		assert(_min_edge_length(geometry_exercise._target_vertices) >= 25.0, "target min edge too short")
+		assert(_min_edge_length(geometry_exercise._user_vertices) >= 25.0, "user min edge too short")
+
+	# 固定模式 3/4/5：各 200 次，顶点数匹配
+	for vc in [3, 4, 5]:
+		geometry_exercise.is_fixed_vertex_mode = true
+		geometry_exercise.fixed_vertex_count = vc
+		for i in range(200):
+			geometry_exercise.generate(0)
+			assert(geometry_exercise._target_vertices.size() == vc, "fixed vertex count mismatch")
+			assert(geometry_exercise._user_vertices.size() == vc, "fixed user vertex count mismatch")
+			_assert_points_in_bounds(_collect_points(geometry_exercise.get_target_draw_date()), "geo fixed target")
+			_assert_points_in_bounds(_collect_points(geometry_exercise.get_copy_draw_date()), "geo fixed copy")
+
+	# 评价用例（三角形）
+	geometry_exercise.is_fixed_vertex_mode = true
+	geometry_exercise.fixed_vertex_count = 3
+	geometry_exercise._target_vertices = [Vector2(100, 100), Vector2(300, 100), Vector2(200, 300)]
+	geometry_exercise._user_vertices = [Vector2(100, 100), Vector2(300, 100), Vector2(200, 300)]
+	geometry_exercise.is_generated = true
+
+	var g_exact: Dictionary = geometry_exercise.validate()
+	assert(g_exact["rating"] == BaseExercise.Rating.FLAWLESS, "exact polygon should be flawless")
+	assert(absf(g_exact["score"] - 100.0) < 0.001, "exact polygon should score 100")
+	assert(g_exact["average_error_px"] == 0.0, "exact polygon error should be 0")
+
+	# 顶点顺序打乱（旋转映射）→ 仍无暇
+	geometry_exercise._user_vertices = [Vector2(200, 300), Vector2(100, 100), Vector2(300, 100)]
+	assert(geometry_exercise.validate()["rating"] == BaseExercise.Rating.FLAWLESS, "rotated order should be flawless")
+
+	# 单顶点偏移 12px → 平均 4px → 完美
+	geometry_exercise._user_vertices = [Vector2(112, 100), Vector2(300, 100), Vector2(200, 300)]
+	var g_perfect: Dictionary = geometry_exercise.validate()
+	assert(g_perfect["rating"] == BaseExercise.Rating.PERFECT, "12px offset should be perfect")
+	assert(absf(g_perfect["average_error_px"] - 4.0) < 0.001, "avg error should be 4")
+
+	# 单顶点偏移 24px → 平均 8px → 过关
+	geometry_exercise._user_vertices = [Vector2(124, 100), Vector2(300, 100), Vector2(200, 300)]
+	assert(geometry_exercise.validate()["rating"] == BaseExercise.Rating.PASS, "24px offset should be pass")
+
+	# 单顶点偏移 36px → 平均 12px → 继续练习
+	geometry_exercise._user_vertices = [Vector2(136, 100), Vector2(300, 100), Vector2(200, 300)]
+	assert(geometry_exercise.validate()["rating"] == BaseExercise.Rating.PRACTICE, "36px offset should be practice")
+
+	# 越界拖拽被夹取到边界框内
+	var g_clamped: Vector2 = geometry_exercise.on_point_dragged(0, Vector2(600, 100))
+	assert(g_clamped == Vector2(490, 100), "geometry drag should clamp: %s" % g_clamped)
+
+	# 固定数值 API
+	assert(absf(geometry_exercise.parse_fixed_value_text("三角形") - 3.0) < 0.0001, "parse 三角形 failed")
+	assert(absf(geometry_exercise.parse_fixed_value_text("四边形") - 4.0) < 0.0001, "parse 四边形 failed")
+	assert(absf(geometry_exercise.parse_fixed_value_text("五边形") - 5.0) < 0.0001, "parse 五边形 failed")
+	assert(geometry_exercise.parse_fixed_value_text("六边形") < 0.0, "parse 六边形 should fail")
+	assert(geometry_exercise.is_valid_fixed_value(3.0), "3 should be valid")
+	assert(geometry_exercise.is_valid_fixed_value(5.0), "5 should be valid")
+	assert(not geometry_exercise.is_valid_fixed_value(6.0), "6 should be invalid")
+	assert(geometry_exercise.get_fixed_value_display_options() == ["三角形", "四边形", "五边形"],
+		"geometry display options mismatch")
+	assert(geometry_exercise.build_fixed_value_session_options(3.0, "三角形") == {
+		"is_fixed_vertex_mode": true, "fixed_vertex_count": 3, "fixed_vertex_text": "三角形"
+	}, "geometry fixed session mismatch")
+	assert(geometry_exercise.build_random_session_options() == {"is_fixed_vertex_mode": false},
+		"geometry random session mismatch")
+	geometry_exercise.is_fixed_vertex_mode = true
+	geometry_exercise.fixed_vertex_text = "三角形"
+	assert(geometry_exercise.get_hint_text() == "三角形", "geometry hint mismatch")
 
 	print("CHECK_OK")
 	quit(0)

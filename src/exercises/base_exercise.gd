@@ -66,6 +66,10 @@ func parse_fixed_value_text(text: String) -> float:
 func is_valid_fixed_value(value: float) -> bool:
 	return value > 0.0
 
+## 固定数值模式下是否提供"自定义..."输入项（几何练习等不需要时覆写为 false）
+func has_custom_fixed_value() -> bool:
+	return true
+
 ## 自定义输入框的占位提示文本
 func get_fixed_value_custom_placeholder() -> String:
 	return "输入自定义数值..."

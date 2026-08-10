@@ -362,7 +362,8 @@ func _populate_fixed_value_dropdown() -> void:
 	var labels: Array = _exercise.get_fixed_value_display_options()
 	for label in labels:
 		_fixed_dropdown.add_item(label)
-	_fixed_dropdown.add_item("自定义...")
+	if _exercise.has_custom_fixed_value():
+		_fixed_dropdown.add_item("自定义...")
 
 
 ## 根据当前选中的值恢复下拉菜单的选中项
