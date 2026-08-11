@@ -16,7 +16,7 @@ const MIN_ANSWER_LENGTH := 30.0
 ## 评价档位（绝对像素偏差）
 const FLAWLESS_ERROR_PX := 1.0 
 const PERFECT_ERROR_PX := 2.0
-const PASS_ERROR_PX := 4.0
+const PASS_ERROR_PX := 8.0
 
 ## 自定义比值的合法范围（r = 答案长 / 原图长）
 const CUSTOM_RATIO_MIN := 0.1

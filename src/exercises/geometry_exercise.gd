@@ -20,7 +20,7 @@ const OUTER_RADIUS_MAX := MAX_VERTEX_RADIUS
 ## 评价档位（顶点匹配后的平均绝对偏差，逻辑像素）
 const FLAWLESS_ERROR_PX := 3.0
 const PERFECT_ERROR_PX := 5.0
-const PASS_ERROR_PX := 10.0
+const PASS_ERROR_PX := 15.0
 
 
 # ── 公开属性（由 ExerciseFactory 在 generate() 之前设置）──

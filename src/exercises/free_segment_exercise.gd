@@ -13,7 +13,7 @@ const LINE_LENGTH_MAX := 300.0
 ## 评价档位（两端点匹配后的平均绝对偏差，逻辑像素）
 const FLAWLESS_ERROR_PX := 1.0
 const PERFECT_ERROR_PX := 3.0
-const PASS_ERROR_PX := 5.0
+const PASS_ERROR_PX := 10.0
 
 
 # ── 公开属性（由 ExerciseFactory 在 generate() 之前设置）──
