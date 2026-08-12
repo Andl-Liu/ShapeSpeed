@@ -13,11 +13,6 @@ const LINE_LENGTH_MAX := 300.0
 ## 等分答案线的最短长度（逻辑像素）
 const MIN_ANSWER_LENGTH := 30.0
 
-## 评价档位（绝对像素偏差）
-const FLAWLESS_ERROR_PX := 1.0 
-const PERFECT_ERROR_PX := 2.0
-const PASS_ERROR_PX := 8.0
-
 ## 自定义比值的合法范围（r = 答案长 / 原图长）
 const CUSTOM_RATIO_MIN := 0.1
 const CUSTOM_RATIO_MAX := 9.0
@@ -142,11 +137,12 @@ func _validate_bounds() -> bool:
 
 ## 根据绝对像素偏差返回评价等级
 func _compute_rating(error_px: float) -> BaseExercise.Rating:
-	if error_px <= FLAWLESS_ERROR_PX:
+	var tiers: Dictionary = Settings.get_rating_tiers("length")
+	if error_px <= tiers["flawless"]:
 		return BaseExercise.Rating.FLAWLESS
-	if error_px <= PERFECT_ERROR_PX:
+	if error_px <= tiers["perfect"]:
 		return BaseExercise.Rating.PERFECT
-	if error_px <= PASS_ERROR_PX:
+	if error_px <= tiers["pass"]:
 		return BaseExercise.Rating.PASS
 	return BaseExercise.Rating.PRACTICE
 
@@ -205,8 +201,9 @@ func validate() -> Dictionary:
 
 	var length_error_px: float = absf(_user_length - _target_length)
 	var rating: BaseExercise.Rating = _compute_rating(length_error_px)
-	# 与"过关"档（10px）对齐的评分容差，延续角度练习"过关=容差=0分"的模式
-	var accuracy: float = clampf(1.0 - length_error_px / PASS_ERROR_PX, 0.0, 1.0)
+	# 评分容差与"过关"档对齐，延续"过关=容差=0分"的模式
+	var pass_px: float = Settings.get_pass_threshold("length")
+	var accuracy: float = clampf(1.0 - length_error_px / pass_px, 0.0, 1.0)
 	var score: float = accuracy * 100.0
 
 	var result := {

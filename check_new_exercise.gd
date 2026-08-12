@@ -133,7 +133,7 @@ func _init() -> void:
 	length_exercise.on_point_dragged(0, Vector2(600, 100))
 	assert(length_exercise._user_length <= 390.0 + 0.001, "drag should be clamped to margin box")
 
-	# 评价档位（绝对像素 3/5/10）
+	# 评价档位（按 Settings 配置的默认阈值）
 	length_exercise._target_length = 100.0
 	length_exercise._user_length = 100.0
 	var r_flawless: Dictionary = length_exercise.validate()
@@ -141,12 +141,13 @@ func _init() -> void:
 	assert(absf(r_flawless["score"] - 100.0) < 0.001, "exact answer should score 100")
 	assert(r_flawless["length_error_px"] == 0.0, "exact answer error should be 0")
 
-	length_exercise._user_length = 104.0
-	assert(length_exercise.validate()["rating"] == BaseExercise.Rating.PERFECT, "4px error should be perfect")
-	length_exercise._user_length = 108.0
-	assert(length_exercise.validate()["rating"] == BaseExercise.Rating.PASS, "8px error should be pass")
-	length_exercise._user_length = 112.0
-	assert(length_exercise.validate()["rating"] == BaseExercise.Rating.PRACTICE, "12px error should be practice")
+	var len_tiers: Dictionary = Settings.get_rating_tiers("length")
+	length_exercise._user_length = 100.0 + len_tiers["perfect"]
+	assert(length_exercise.validate()["rating"] == BaseExercise.Rating.PERFECT, "perfect-tier error should be perfect")
+	length_exercise._user_length = 100.0 + len_tiers["pass"]
+	assert(length_exercise.validate()["rating"] == BaseExercise.Rating.PASS, "pass-tier error should be pass")
+	length_exercise._user_length = 100.0 + len_tiers["pass"] + 1.0
+	assert(length_exercise.validate()["rating"] == BaseExercise.Rating.PRACTICE, "beyond pass should be practice")
 
 	# 会话参数构造
 	var opts: Dictionary = length_exercise.build_fixed_value_session_options(0.4, "2/5")
@@ -193,20 +194,19 @@ func _init() -> void:
 	var r_swap: Dictionary = free_exercise.validate()
 	assert(r_swap["rating"] == BaseExercise.Rating.FLAWLESS, "swapped copy should be flawless")
 
-	# 单端点偏差 8px → 平均 4px → 完美
-	free_exercise._user_a = Vector2(308, 100)
+	# 单端点偏移 → 平均偏差 = 偏移/2，按 Settings 阈值判定
+	var fs_tiers: Dictionary = Settings.get_rating_tiers("free_segment")
+	free_exercise._user_a = Vector2(300 + 2.0 * fs_tiers["perfect"], 100)
 	free_exercise._user_b = Vector2(100, 100)
 	var r_perfect: Dictionary = free_exercise.validate()
-	assert(r_perfect["rating"] == BaseExercise.Rating.PERFECT, "8px endpoint offset should be perfect")
-	assert(absf(r_perfect["average_error_px"] - 4.0) < 0.001, "avg error should be 4")
+	assert(r_perfect["rating"] == BaseExercise.Rating.PERFECT, "perfect-tier avg should be perfect")
+	assert(absf(r_perfect["average_error_px"] - fs_tiers["perfect"]) < 0.001, "avg error mismatch")
 
-	# 单端点偏差 16px → 平均 8px → 过关
-	free_exercise._user_a = Vector2(316, 100)
-	assert(free_exercise.validate()["rating"] == BaseExercise.Rating.PASS, "16px offset should be pass")
+	free_exercise._user_a = Vector2(300 + 2.0 * fs_tiers["pass"], 100)
+	assert(free_exercise.validate()["rating"] == BaseExercise.Rating.PASS, "pass-tier avg should be pass")
 
-	# 单端点偏差 24px → 平均 12px → 继续练习
-	free_exercise._user_a = Vector2(324, 100)
-	assert(free_exercise.validate()["rating"] == BaseExercise.Rating.PRACTICE, "24px offset should be practice")
+	free_exercise._user_a = Vector2(300 + 2.0 * fs_tiers["pass"] + 2.0, 100)
+	assert(free_exercise.validate()["rating"] == BaseExercise.Rating.PRACTICE, "beyond pass should be practice")
 
 	# 越界拖拽被夹取到边界框内
 	var clamped: Vector2 = free_exercise.on_point_dragged(0, Vector2(600, 100))
@@ -259,19 +259,24 @@ func _init() -> void:
 	geometry_exercise._user_vertices = [Vector2(200, 300), Vector2(100, 100), Vector2(300, 100)]
 	assert(geometry_exercise.validate()["rating"] == BaseExercise.Rating.FLAWLESS, "rotated order should be flawless")
 
-	# 单顶点偏移 12px → 平均 4px → 完美
-	geometry_exercise._user_vertices = [Vector2(112, 100), Vector2(300, 100), Vector2(200, 300)]
+	# 单顶点偏移 → 平均偏差 = 偏移/3，按 Settings 阈值判定
+	var geo_tiers: Dictionary = Settings.get_rating_tiers("geometry")
+	geometry_exercise._user_vertices = [
+		Vector2(100 + 3.0 * geo_tiers["perfect"], 100), Vector2(300, 100), Vector2(200, 300)
+	]
 	var g_perfect: Dictionary = geometry_exercise.validate()
-	assert(g_perfect["rating"] == BaseExercise.Rating.PERFECT, "12px offset should be perfect")
-	assert(absf(g_perfect["average_error_px"] - 4.0) < 0.001, "avg error should be 4")
+	assert(g_perfect["rating"] == BaseExercise.Rating.PERFECT, "perfect-tier avg should be perfect")
+	assert(absf(g_perfect["average_error_px"] - geo_tiers["perfect"]) < 0.001, "avg error mismatch")
 
-	# 单顶点偏移 24px → 平均 8px → 过关
-	geometry_exercise._user_vertices = [Vector2(124, 100), Vector2(300, 100), Vector2(200, 300)]
-	assert(geometry_exercise.validate()["rating"] == BaseExercise.Rating.PASS, "24px offset should be pass")
+	geometry_exercise._user_vertices = [
+		Vector2(100 + 3.0 * geo_tiers["pass"], 100), Vector2(300, 100), Vector2(200, 300)
+	]
+	assert(geometry_exercise.validate()["rating"] == BaseExercise.Rating.PASS, "pass-tier avg should be pass")
 
-	# 单顶点偏移 36px → 平均 12px → 继续练习
-	geometry_exercise._user_vertices = [Vector2(136, 100), Vector2(300, 100), Vector2(200, 300)]
-	assert(geometry_exercise.validate()["rating"] == BaseExercise.Rating.PRACTICE, "36px offset should be practice")
+	geometry_exercise._user_vertices = [
+		Vector2(100 + 3.0 * geo_tiers["pass"] + 3.0, 100), Vector2(300, 100), Vector2(200, 300)
+	]
+	assert(geometry_exercise.validate()["rating"] == BaseExercise.Rating.PRACTICE, "beyond pass should be practice")
 
 	# 越界拖拽被夹取到边界框内
 	var g_clamped: Vector2 = geometry_exercise.on_point_dragged(0, Vector2(600, 100))
@@ -295,6 +300,27 @@ func _init() -> void:
 	geometry_exercise.is_fixed_vertex_mode = true
 	geometry_exercise.fixed_vertex_text = "三角形"
 	assert(geometry_exercise.get_hint_text() == "三角形", "geometry hint mismatch")
+
+	# ══ 设置 API：过关阈值可调整、夹取、恢复 ══
+	var saved_pass: Dictionary = {}
+	for t in ["angle_fixed_center", "angle_fixed_end", "length", "free_segment", "geometry"]:
+		saved_pass[t] = Settings.get_pass_threshold(t)
+
+	Settings.set_pass_threshold("length", 12.0)
+	assert(Settings.get_pass_threshold("length") == 12.0, "pass threshold should update")
+	length_exercise._target_length = 100.0
+	length_exercise._user_length = 110.0  # 10 > 默认 8，但 ≤ 新阈值 12
+	assert(length_exercise.validate()["rating"] == BaseExercise.Rating.PASS, "custom pass should apply")
+	length_exercise._user_length = 113.0  # > 新阈值 12
+	assert(length_exercise.validate()["rating"] == BaseExercise.Rating.PRACTICE, "beyond custom pass should be practice")
+
+	Settings.set_pass_threshold("length", 999.0)
+	assert(Settings.get_pass_threshold("length") == 100.0, "pass should clamp to max")
+	Settings.set_pass_threshold("length", 0.0)
+	assert(Settings.get_pass_threshold("length") == 1.0, "pass should clamp to min")
+
+	for t in saved_pass:
+		Settings.set_pass_threshold(t, saved_pass[t])
 
 	print("CHECK_OK")
 	quit(0)

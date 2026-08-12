@@ -46,9 +46,10 @@ const EDGE_MARGIN := 10.0
 
 ## 根据角度偏差返回评价等级——本练习的判定标准
 func _compute_rating(error_deg: float) -> BaseExercise.Rating:
-	if error_deg <= 0.3:  return BaseExercise.Rating.FLAWLESS
-	if error_deg <= 1.0:  return BaseExercise.Rating.PERFECT
-	if error_deg <= 2.0:  return BaseExercise.Rating.PASS
+	var tiers: Dictionary = Settings.get_rating_tiers("angle_fixed_end")
+	if error_deg <= tiers["flawless"]:  return BaseExercise.Rating.FLAWLESS
+	if error_deg <= tiers["perfect"]:   return BaseExercise.Rating.PERFECT
+	if error_deg <= tiers["pass"]:      return BaseExercise.Rating.PASS
 	return BaseExercise.Rating.PRACTICE
 
 
@@ -175,7 +176,8 @@ func validate() -> Dictionary:
 	assert(is_generated, "validate() called before generate()")
 
 	var angle_error: float = MathUtils.angle_difference_deg(_target_angle_deg, _user_angle_deg)
-	var tolerance: float = Settings.get_settings(difficulty, "angle_tolerance")
+	# 评分容差与"过关"档对齐
+	var tolerance: float = Settings.get_pass_threshold("angle_fixed_end")
 	var accuracy: float = clampf(1.0 - angle_error / tolerance, 0.0, 1.0)
 	var score: float = accuracy * 100.0
 

@@ -6,6 +6,7 @@ extends Control
 @onready var _button_container: VBoxContainer = $VBox/ButtonContainer
 @onready var _timed_checkbox: CheckBox = $VBox/TimedModeCheckBox
 @onready var _timed_input: LineEdit = $VBox/TimedSecondsInput
+@onready var _settings_btn: Button = $VBox/SettingsBtn
 
 
 # ── 支持面板常量 ──
@@ -36,6 +37,7 @@ func _ready() -> void:
 	_timed_input.text = str(int(GameManager.timed_mode_seconds))
 	_timed_checkbox.toggled.connect(_on_timed_mode_toggled)
 	_timed_input.text_submitted.connect(_on_timed_seconds_submitted)
+	_settings_btn.pressed.connect(_on_settings_pressed)
 
 
 # ── 支持面板（右下角“支持我”按钮） ──
@@ -184,6 +186,11 @@ func _on_kofi_clicked(_meta: Variant) -> void:
 func _on_exercise_selected(type: String) -> void:
 	GameManager.session_type = type
 	get_tree().change_scene_to_file("res://src/scenes/main.tscn")
+
+
+## 进入参数设置界面
+func _on_settings_pressed() -> void:
+	get_tree().change_scene_to_file("res://src/scenes/settings.tscn")
 
 
 ## 计时模式开关：切换 GameManager 配置并显示/隐藏秒数输入框
