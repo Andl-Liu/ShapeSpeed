@@ -8,6 +8,7 @@ extends Node
 const SOUND_CORRECT := preload("res://assets/sounds/correct.wav")
 const SOUND_FAIL := preload("res://assets/sounds/fail.wav")
 const SOUND_TIME_UP := preload("res://assets/sounds/time_up.wav")
+const SOUND_POP_ALERT := preload("res://assets/sounds/pop-alert.mp3")
 
 var _player: AudioStreamPlayer = null
 
@@ -30,6 +31,11 @@ func play_fail() -> void:
 ## 计时模式最后两秒提示音
 func play_time_up() -> void:
 	_play(SOUND_TIME_UP)
+
+
+## 可控点开始拖动时的提示音（直接拖动 / 空白长按升级）
+func play_pop() -> void:
+	_play(SOUND_POP_ALERT)
 
 
 func _play(stream: AudioStream) -> void:

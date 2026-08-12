@@ -8,6 +8,8 @@ const BG_TARGET := Color(0.15, 0.15, 0.18, 1.0)   # 原图区背景
 const BG_COPY   := Color(0.15, 0.15, 0.18, 1.0)   # 临摹区背景（和原图区一致）
 const BORDER_COLOR := Color(0.35, 0.35, 0.40, 1.0)
 const AREA_LABEL_FONT := preload("res://assets/fonts/SmileySans-Oblique.otf")
+const LONG_PRESS_MS := 400       # 长按判定阈值（毫秒）
+const TAP_SLOP_PX := 10.0        # 点击判定允许的最大位移（屏幕像素）
 
 
 # ── 内部状态 ──
@@ -19,6 +21,13 @@ var _dragging_point_id: int = -1
 var _elapsed_seconds: float = 0.0
 var _displayed_seconds: int = -1
 var _time_up_played: bool = false
+var _active_point_id: int = -1           # 点击激活的可控点序号（-1 = 无）
+var _blank_drag_active: bool = false     # 是否正在通过空白长按相对拖动
+var _blank_press_pending: bool = false   # 空白处按住，等待长按判定
+var _press_position: Vector2 = Vector2.ZERO   # 最近一次按下的屏幕位置
+var _press_time_msec: int = 0                 # 最近一次按下的时间戳
+var _last_drag_position: Vector2 = Vector2.ZERO  # 相对拖动时上一次的位置
+var _drag_pop_played: bool = false            # 本次按下是否已播过拖动提示音
 
 ## 两个区域的屏幕坐标矩形（每帧 _draw 前更新）
 var _original_rect := Rect2()
@@ -69,6 +78,9 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if GameManager.get_state() != GameManager.State.PLAYING:
 		return
+
+	# 空白长按满阈值后立即升级为相对拖动，避免依赖移动事件触发
+	_try_start_blank_drag()
 
 	_elapsed_seconds += delta
 	var seconds: int = int(_elapsed_seconds)
@@ -147,6 +159,7 @@ func _draw_geometry(draw_data: Array, area_rect: Rect2, alpha: float = 1.0) -> v
 	var area_center := area_rect.position + area_rect.size / 2.0
 	var logical_center: Vector2 = Settings.CANVAS.default_center
 
+	var control_point_index := 0
 	for item in draw_data:
 		var item_type: String = item.get("type", "")
 		var color: Color = item["color"]
@@ -167,7 +180,14 @@ func _draw_geometry(draw_data: Array, area_rect: Rect2, alpha: float = 1.0) -> v
 			"control_point":
 				var cp: Vector2 = _logical_to_screen(item["center"], area_center, logical_center, scale_current)
 				var cp_radius: float = item.get("radius", Settings.CANVAS.control_point_radius) * scale_current
-				draw_circle(cp, cp_radius, color)
+				# 未激活、未拖动的可控点显示灰色；激活中或被拖动的点显示原色
+				var point_color: Color = color
+				if control_point_index != _active_point_id and control_point_index != _dragging_point_id:
+					point_color = Settings.COLORS.auxiliary
+					if alpha < 1.0:
+						point_color = Color(point_color.r, point_color.g, point_color.b, point_color.a * alpha)
+				draw_circle(cp, cp_radius, point_color)
+				control_point_index += 1
 
 
 func _logical_to_screen(logical_pos: Vector2, area_center: Vector2, logical_center: Vector2, scale_current: float) -> Vector2:
@@ -222,24 +242,126 @@ func _handle_rotation_input(event: InputEvent) -> void:
 			_prev_mouse_angle_deg = current_angle
 
 
-## 控制点拖拽模式输入：命中可控点后拖动，位置交由练习约束
+## 控制点输入：
+## - 按住可控点 → 直接拖动（现状）
+## - 快速点击可控点 → 激活/取消激活（灰色↔原色）
+## - 按住空白 → 长按后相对拖动已激活的点；快速点击空白 → 取消激活
 func _handle_point_drag_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
-		if mb.button_index == MOUSE_BUTTON_LEFT:
-			if mb.pressed:
-				if _copy_rect.has_point(mb.position):
-					_dragging_point_id = _hit_test_control_point(mb.position)
+		if mb.button_index != MOUSE_BUTTON_LEFT:
+			return
+		if mb.pressed:
+			_press_position = mb.position
+			_press_time_msec = Time.get_ticks_msec()
+			_drag_pop_played = false
+			if _copy_rect.has_point(mb.position):
+				var hit_id: int = _hit_test_control_point(mb.position)
+				if hit_id >= 0:
+					# 按住可控点：立即开始直接拖动
+					_dragging_point_id = hit_id
+					_blank_press_pending = false
+					_blank_drag_active = false
 				else:
+					# 按住空白：等待长按，用于相对拖动激活的点
 					_dragging_point_id = -1
+					_blank_press_pending = true
 			else:
 				_dragging_point_id = -1
+				_blank_press_pending = false
+		else:
+			_release_point_drag(mb.position)
 
 	elif event is InputEventMouseMotion:
 		if _dragging_point_id >= 0:
-			var proposed: Vector2 = _screen_to_logical(event.position, _copy_rect)
-			_exercise.on_point_dragged(_dragging_point_id, proposed)
-			queue_redraw()
+			if _blank_drag_active:
+				# 空白相对拖动：激活点跟随手指位移（不跳到手指位置）
+				_apply_blank_drag_delta(event.position - _last_drag_position)
+				_last_drag_position = event.position
+				queue_redraw()
+			else:
+				# 直接拖动：点跟随手指绝对位置（现状）
+				if not _drag_pop_played:
+					_drag_pop_played = true
+					AudioManager.play_pop()
+				var proposed: Vector2 = _screen_to_logical(event.position, _copy_rect)
+				_exercise.on_point_dragged(_dragging_point_id, proposed)
+				queue_redraw()
+
+		elif _blank_press_pending:
+			if _try_start_blank_drag():
+				# 升级的同一事件内立即应用位移，消除长按后点慢半拍的延迟
+				_apply_blank_drag_delta(event.position - _last_drag_position)
+				_last_drag_position = event.position
+
+
+## 空白长按满阈值且有点被激活时，把长按升级为相对拖动。
+## 以按下位置为拖动基准，保证开始移动后点立即跟随完整位移。
+func _try_start_blank_drag() -> bool:
+	if not _blank_press_pending or _active_point_id < 0:
+		return false
+	if Time.get_ticks_msec() - _press_time_msec < LONG_PRESS_MS:
+		return false
+	_blank_press_pending = false
+	_dragging_point_id = _active_point_id
+	_blank_drag_active = true
+	_last_drag_position = _press_position
+	_drag_pop_played = true
+	AudioManager.play_pop()
+	queue_redraw()
+	return true
+
+
+## 应用一次空白相对拖动（screen_delta 为屏幕位移）
+func _apply_blank_drag_delta(screen_delta: Vector2) -> void:
+	if _dragging_point_id < 0:
+		return
+	var current: Vector2 = _get_control_point_position(_dragging_point_id)
+	var proposed: Vector2 = current + _screen_delta_to_logical(screen_delta)
+	_exercise.on_point_dragged(_dragging_point_id, proposed)
+
+
+## 松开：区分点击与拖动，更新激活状态并清理拖拽状态
+func _release_point_drag(release_position: Vector2) -> void:
+	if _blank_press_pending:
+		# 空白处快速松开且无位移 = 点击空白 → 取消激活；有位移视为滑动，忽略
+		var moved: float = _press_position.distance_to(release_position)
+		var duration: int = Time.get_ticks_msec() - _press_time_msec
+		if moved <= TAP_SLOP_PX and duration < LONG_PRESS_MS:
+			_active_point_id = -1
+	elif _dragging_point_id >= 0 and not _blank_drag_active:
+		# 直接在可控点上快速松开且无位移 = 点击 → 切换激活状态
+		var moved: float = _press_position.distance_to(release_position)
+		var duration: int = Time.get_ticks_msec() - _press_time_msec
+		if moved <= TAP_SLOP_PX and duration < LONG_PRESS_MS:
+			if _active_point_id == _dragging_point_id:
+				_active_point_id = -1
+			else:
+				_active_point_id = _dragging_point_id
+
+	_dragging_point_id = -1
+	_blank_drag_active = false
+	_blank_press_pending = false
+	queue_redraw()
+
+
+## 返回指定可控点当前的逻辑坐标（按临摹绘制数据中的顺序）
+func _get_control_point_position(point_id: int) -> Vector2:
+	var idx: int = 0
+	for item in _exercise.get_copy_draw_date():
+		if item.get("type", "") != "control_point":
+			continue
+		if idx == point_id:
+			return item["center"]
+		idx += 1
+	return Settings.CANVAS.default_center
+
+
+## 屏幕位移 → 逻辑位移
+func _screen_delta_to_logical(screen_delta: Vector2) -> Vector2:
+	var logical_size: Vector2 = Settings.CANVAS.default_size
+	var scale_current: float = _copy_rect.size.x / logical_size.x
+	return screen_delta / scale_current
 
 
 ## 在临摹区命中检测可控点，返回其序号；未命中返回 -1
@@ -294,6 +416,10 @@ func _on_exercise_started(exercise: BaseExercise) -> void:
 	_exercise.geometry_changed.connect(queue_redraw)
 	_is_rotating = false
 	_dragging_point_id = -1
+	_active_point_id = -1
+	_blank_drag_active = false
+	_blank_press_pending = false
+	_drag_pop_played = false
 	_elapsed_seconds = 0.0
 	_displayed_seconds = -1
 	_time_up_played = false
