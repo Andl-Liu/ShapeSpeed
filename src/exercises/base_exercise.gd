@@ -44,6 +44,10 @@ func get_hint_text() -> String:
 func has_fixed_value_mode() -> bool:
 	return false
 
+## 是否显示齿轮按钮（点击展开参数面板；默认关闭，长度练习打开）
+func has_gear_button() -> bool:
+	return false
+
 ## 返回固定数值模式下的预设选项列表
 func get_fixed_value_options() -> Array:
 	return []

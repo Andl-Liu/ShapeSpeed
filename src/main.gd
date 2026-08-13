@@ -28,6 +28,7 @@ var _press_position: Vector2 = Vector2.ZERO   # 最近一次按下的屏幕位�
 var _press_time_msec: int = 0                 # 最近一次按下的时间戳
 var _last_drag_position: Vector2 = Vector2.ZERO  # 相对拖动时上一次的位置
 var _drag_pop_played: bool = false            # 本次按下是否已播过拖动提示音
+var _direction_mode: int = 0                  # 长度练习方向模式：0=随机 1=竖直 2=水平
 
 ## 两个区域的屏幕坐标矩形（每帧 _draw 前更新）
 var _original_rect := Rect2()
@@ -51,6 +52,11 @@ var _custom_value_text: String = ""
 @onready var _fixed_checkbox: CheckBox = $UI/FixedValueCheckBox
 @onready var _fixed_dropdown: OptionButton = $UI/FixedValueDropdown
 @onready var _fixed_custom_input: LineEdit = $UI/FixedValueCustomInput
+@onready var _gear_btn: Button = $UI/GearButton
+@onready var _direction_panel: PanelContainer = $UI/DirectionPanel
+@onready var _direction_random_radio: CheckBox = $UI/DirectionPanel/Margin/VBox/DirectionRandomRadio
+@onready var _direction_vertical_radio: CheckBox = $UI/DirectionPanel/Margin/VBox/DirectionVerticalRadio
+@onready var _direction_horizontal_radio: CheckBox = $UI/DirectionPanel/Margin/VBox/DirectionHorizontalRadio
 
 
 # ── 生命周期 ──
@@ -63,11 +69,15 @@ func _ready() -> void:
 
 	_submit_btn.pressed.connect(_on_submit_pressed)
 	_back_btn.pressed.connect(_on_back_pressed)
+	_gear_btn.pressed.connect(_on_gear_button_pressed)
 
 	# 固定数值模式 UI 连接
 	_fixed_checkbox.toggled.connect(_on_fixed_value_checkbox_toggled)
 	_fixed_dropdown.item_selected.connect(_on_fixed_value_dropdown_selected)
 	_fixed_custom_input.text_submitted.connect(_on_fixed_value_custom_submitted)
+	_direction_random_radio.toggled.connect(_on_direction_radio_toggled.bind(0))
+	_direction_vertical_radio.toggled.connect(_on_direction_radio_toggled.bind(1))
+	_direction_horizontal_radio.toggled.connect(_on_direction_radio_toggled.bind(2))
 
 	# 启动第一题
 	GameManager.start_new_exercise()
@@ -437,6 +447,8 @@ func _on_exercise_started(exercise: BaseExercise) -> void:
 
 	# 固定数值模式 UI 更新
 	_update_fixed_value_ui()
+	# 方向模式 UI 更新
+	_update_direction_ui()
 
 	queue_redraw()
 
@@ -609,10 +621,52 @@ func _regenerate_with_fixed_value() -> void:
 		if idx >= 0:
 			display_text = _fixed_dropdown.get_item_text(idx)
 	GameManager.session_options = _exercise.build_fixed_value_session_options(_selected_fixed_value, display_text)
+	_apply_direction_to_session_options()
 	GameManager.regenerate_exercise()
 
 
 ## 关闭固定数值模式，重新生成普通练习（不增加回合数）
 func _regenerate_without_fixed_value() -> void:
 	GameManager.session_options = _exercise.build_random_session_options()
+	_apply_direction_to_session_options()
 	GameManager.regenerate_exercise()
+
+
+# ── 齿轮参数面板 UI 逻辑（随机/竖直/水平，长度练习） ──
+
+## 根据当前练习更新齿轮按钮的可见性，并同步面板内方向选项的选中状态
+func _update_direction_ui() -> void:
+	var show: bool = _exercise != null and _exercise.has_gear_button()
+	_gear_btn.visible = show
+	if not show:
+		_direction_panel.visible = false
+		return
+
+	# 从当前练习同步方向模式（首次进入默认随机），用 no_signal 避免触发重新生成
+	if "direction_mode" in _exercise:
+		_direction_mode = _exercise.direction_mode
+	_direction_random_radio.set_pressed_no_signal(_direction_mode == 0)
+	_direction_vertical_radio.set_pressed_no_signal(_direction_mode == 1)
+	_direction_horizontal_radio.set_pressed_no_signal(_direction_mode == 2)
+
+
+## 齿轮按钮：展开/收起方向参数面板
+func _on_gear_button_pressed() -> void:
+	_direction_panel.visible = not _direction_panel.visible
+
+
+## 方向单选项切换：更新模式并重新生成当前练习（不增加回合数）
+func _on_direction_radio_toggled(pressed: bool, mode: int) -> void:
+	if not pressed:
+		return
+	if _direction_mode == mode:
+		return
+	_direction_mode = mode
+	_apply_direction_to_session_options()
+	GameManager.regenerate_exercise()
+
+
+## 把当前方向模式写入会话参数（仅对支持方向模式的练习）
+func _apply_direction_to_session_options() -> void:
+	if _exercise and _exercise.has_gear_button():
+		GameManager.session_options["direction_mode"] = _direction_mode

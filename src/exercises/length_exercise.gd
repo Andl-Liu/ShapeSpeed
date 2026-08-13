@@ -29,6 +29,9 @@ const CUSTOM_RATIO_MAX := 9.0
 ## 固定数值模式下用户选择/输入的显示文本（用于提示，如 "2/5"、"3"）
 @export var fixed_ratio_text: String = ""
 
+## 方向模式：0=随机 1=竖直 2=水平
+@export var direction_mode: int = 0
+
 ## 颜色相关
 @export var color_target    := Settings.COLORS.target
 @export var color_user      := Settings.COLORS.user
@@ -54,6 +57,14 @@ var _user_length: float = 0.0                              # 可控点距锚点�
 ## 返回单位方向向量（沿线段倾斜方向）
 func _get_direction() -> Vector2:
 	return GeometryUtils.line_endpoint(Vector2.ZERO, _line_angle_deg, 1.0)
+
+
+## 按方向模式采样线段方向角：随机 / 竖直(90°) / 水平(0°)
+func _sample_direction_angle() -> float:
+	match direction_mode:
+		1: return 90.0
+		2: return 0.0
+		_: return randf_range(0.0, 180.0)
 
 
 ## 判断逻辑点是否位于"距区域边缘 ≥ EDGE_MARGIN"的边界框内
@@ -165,7 +176,7 @@ func generate(_difficulty: int) -> void:
 
 	var found := false
 	for i in range(64):
-		_line_angle_deg = randf_range(0.0, 180.0)
+		_line_angle_deg = _sample_direction_angle()
 		_original_length = randf_range(min_length, LINE_LENGTH_MAX)
 		var dir: Vector2 = _get_direction()
 		var extent: float = _original_length * extent_ratio
@@ -175,8 +186,11 @@ func generate(_difficulty: int) -> void:
 			break
 
 	if not found:
-		# 回退：对角方向 max(|cos|,|sin|) 最小，能容纳最长的线段
-		_line_angle_deg = 45.0 if randi() % 2 == 0 else 135.0
+		# 回退：竖直/水平保持模式方向；随机模式用对角方向（容纳最长线段）
+		if direction_mode == 0:
+			_line_angle_deg = 45.0 if randi() % 2 == 0 else 135.0
+		else:
+			_line_angle_deg = _sample_direction_angle()
 		var dir: Vector2 = _get_direction()
 		var max_component: float = maxf(absf(dir.x), absf(dir.y))
 		var max_extent: float = (Settings.CANVAS.default_size.x - 2.0 * EDGE_MARGIN) / max_component
@@ -348,6 +362,11 @@ func get_error_display_text(result: Dictionary) -> String:
 # ── 固定数值模式 ──
 
 func has_fixed_value_mode() -> bool:
+	return true
+
+
+## 显示齿轮按钮（内含随机/竖直/水平方向选项）
+func has_gear_button() -> bool:
 	return true
 
 

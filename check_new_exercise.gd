@@ -156,6 +156,32 @@ func _init() -> void:
 	assert(length_exercise.build_random_session_options() == {"is_fixed_length_mode": false},
 		"random session options mismatch")
 
+	# 方向模式：竖直 → dx≈0；水平 → dy≈0；大倍数延长触发回退时仍保持模式方向
+	assert(length_exercise.has_gear_button(), "length should show gear button")
+	length_exercise.is_fixed_length_mode = false
+	length_exercise.direction_mode = 1
+	for i in range(100):
+		length_exercise.generate(0)
+		var v_line: Dictionary = length_exercise.get_target_draw_date()[0]
+		assert(absf(v_line["from"].x - v_line["to"].x) < 0.001, "vertical mode should have dx≈0")
+
+	length_exercise.direction_mode = 2
+	for i in range(100):
+		length_exercise.generate(0)
+		var h_line: Dictionary = length_exercise.get_target_draw_date()[0]
+		assert(absf(h_line["from"].y - h_line["to"].y) < 0.001, "horizontal mode should have dy≈0")
+
+	length_exercise.is_fixed_length_mode = true
+	length_exercise.fixed_ratio = 9.0
+	length_exercise.direction_mode = 1
+	for i in range(50):
+		length_exercise.generate(0)
+		var vf_line: Dictionary = length_exercise.get_target_draw_date()[0]
+		assert(absf(vf_line["from"].x - vf_line["to"].x) < 0.001, "vertical fixed mode should stay vertical")
+
+	length_exercise.is_fixed_length_mode = false
+	length_exercise.direction_mode = 0
+
 	# ══ 自由线段练习 ══
 	const FreeSegmentScript := preload("res://src/exercises/free_segment_exercise.gd")
 	var free_exercise = FreeSegmentScript.new()
